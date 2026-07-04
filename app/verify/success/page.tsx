@@ -295,13 +295,19 @@ function SuccessContent() {
     poll();
   }, [resolvedRequestId]);
 
-  // Auto-generate ZK proof once attestation is ready and no proof exists yet
+  // Auto-generate ZK proof once attestation is ready and no proof exists yet.
+  // EVM sessions gate on the ECDSA oracleSignature; Stellar sessions never get
+  // one (verified on-chain via the Soroban UltraHonk verifier instead) and gate
+  // on the Grumpkin Schnorr signature.
+  const attestationSignature = chainKind === 'stellar'
+    ? attestation?.oracleSchnorrSignature
+    : attestation?.oracleSignature;
   useEffect(() => {
-    if (zkProof || !attestation?.oracleSignature || autoProofRef.current || alreadyVerified) return;
+    if (zkProof || !attestationSignature || autoProofRef.current || alreadyVerified) return;
     autoProofRef.current = true;
     handleGenerateZk();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attestation?.oracleSignature, zkProof, alreadyVerified]);
+  }, [attestationSignature, zkProof, alreadyVerified]);
 
   useEffect(() => {
     if (!txConfirmed || !txHash || !resolvedRequestId || confirmedRef.current) return;
