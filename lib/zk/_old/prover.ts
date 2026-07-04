@@ -1,5 +1,5 @@
 import { Noir } from '@noir-lang/noir_js';
-import { Barretenberg, UltraHonkBackend } from '@aztec/bb.js';
+import { UltraHonkBackend } from '@aztec/bb.js';
 
 export interface ProveInputs {
   signature: number[];
@@ -104,11 +104,8 @@ export async function generateProof(inputs: ProveInputs) {
     const response = await fetch(`/circuit.json?v=${Date.now()}`, { cache: 'no-store' });
     const circuit = await response.json();
 
-    console.log('Initializing Barretenberg WASM backend...');
-    const api = await Barretenberg.new();
-
     console.log('Creating UltraHonkBackend and Noir instances...');
-    const backend = new UltraHonkBackend(circuit.bytecode, api);
+    const backend = new UltraHonkBackend(circuit.bytecode);
     const noir = new Noir(circuit);
 
     console.log('Executing circuit (generating witness)...');
