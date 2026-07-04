@@ -21,7 +21,7 @@ export interface ProveInputs {
   wallet_address_lo:  string;
 }
 
-import { Barretenberg, BackendType, UltraHonkBackend } from '../../node_modules/@aztec/bb.js/dest/browser/index.js';
+import { UltraHonkBackend } from '../../node_modules/@aztec/bb.js/dest/browser/index.js';
 import { Noir } from '@noir-lang/noir_js';
 
 // Singleton backend — reuse across calls to avoid re-initialising WASM
@@ -37,24 +37,20 @@ async function getBackend(bytecode: string) {
   if (!backendPromise) {
     backendPromise = (async () => {
       try {
+        // bb.js 0.87.0 API: UltraHonkBackend takes BackendOptions directly and
+        // lazily constructs its own Barretenberg worker on first use — no more
+        // separate Barretenberg.new()/BackendType (both removed in this version;
+        // pinned to 0.87.0 to match the bb CLI version the on-chain Soroban
+        // verifier's VK was built with, see ProveOptions.oracleHash below).
+        // Multi-threaded WASM needs SharedArrayBuffer (unavailable e.g. behind a
+        // wallet popup's COOP policy); fall back to a single thread without it.
         const hasSAB = typeof SharedArrayBuffer !== 'undefined';
         const threads = hasSAB
           ? Math.min(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1, 4)
           : 1;
+        console.log(`[ZK] Initializing UltraHonkBackend (${threads} thread(s), SAB=${hasSAB})...`);
 
-        // bb.js v4.2.1 API: Barretenberg.new() takes BackendOptions object.
-        // When SharedArrayBuffer is unavailable (COOP != same-origin, e.g. for
-        // wallet popups), we MUST force the plain Wasm backend. The default
-        // fallback order tries WasmWorker first, which hangs without SAB.
-        const backendType = hasSAB ? BackendType.WasmWorker : BackendType.Wasm;
-        console.log(`[ZK] Initializing Barretenberg (${threads} thread(s), backend=${backendType}, SAB=${hasSAB})...`);
-
-        const api = await Barretenberg.new({
-          threads,
-          backend: backendType,
-        });
-        console.log('[ZK] Barretenberg ready ✓');
-        return new UltraHonkBackend(bytecode, api);
+        return new UltraHonkBackend(bytecode, { threads });
       } catch (e) {
         backendPromise = null;
         throw e;
